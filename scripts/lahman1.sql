@@ -44,5 +44,26 @@ ORDER BY total_salary DESC;
 			WHERE yearid = '2016') 
 SELECT player_position, SUM(PO) AS total_putouts
 FROM position_grouping
-GROUP BY player_position		
+GROUP BY player_position;		
 						  
+--5. Find the average number of strikeouts per game by decade since 1920. Round the numbers you report to 2 decimal places. Do the same for home runs per game. Do you see any trends?
+
+SELECT G AS Game, ROUND(AVG(SO),2) AS avg_strikeouts,
+		ROUND(AVG(hr),2) AS avg_homeruns,
+		CASE WHEN yearid BETWEEN 1920 AND 1929 THEN '1920s'
+			WHEN yearid BETWEEN 1930 AND 1939 THEN '1930s'
+			WHEN yearid BETWEEN 1940 AND 1949 THEN '1940s'
+			WHEN yearid BETWEEN 1950 AND 1959 THEN '1950s'
+			WHEN yearid BETWEEN 1960 AND 1969 THEN '1920s'
+			WHEN yearid BETWEEN 1970 AND 1979 THEN '1970s'
+			WHEN yearid BETWEEN 1980 AND 1989 THEN '1980s'
+			WHEN yearid BETWEEN 1990 AND 1999 THEN '1990s'
+			WHEN yearid BETWEEN 2000 AND 2009 THEN '2000s'
+			WHEN yearid BETWEEN 2010 AND 2019 THEN '2010s'
+			ELSE 'Not between Years' END AS decades
+FROM batting
+WHERE yearid BETWEEN 1920 AND 2016
+GROUP BY Game, yearid
+ORDER BY avg_strikeouts DESC
+
+--6. Find the player who had the most success stealing bases in 2016, where __success__ is measured as the percentage of stolen base attempts which are successful. (A stolen base attempt results either in a stolen base or being caught stealing.) Consider only players who attempted _at least_ 20 stolen bases.
