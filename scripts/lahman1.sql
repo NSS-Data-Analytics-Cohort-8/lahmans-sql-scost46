@@ -30,7 +30,19 @@ INNER JOIN schools
 USING(schoolid)
 WHERE schoolname ILIKE '%vanderbilt%'
 GROUP BY fullname
-ORDER BY total_salary DESC
+ORDER BY total_salary DESC;
 --david price
 
 --4. Using the fielding table, group players into three groups based on their position: label players with position OF as "Outfield", those with position "SS", "1B", "2B", and "3B" as "Infield", and those with position "P" or "C" as "Battery". Determine the number of putouts made by each of these three groups in 2016.
+
+		WITH position_grouping AS	
+				(SELECT yearid, PO,
+					CASE WHEN pos = 'OF' THEN 'Outfield'
+						WHEN pos = 'P' OR pos = 'C' THEN 'Battery'
+						ELSE 'Infield' END AS player_position
+			FROM fielding
+			WHERE yearid = '2016') 
+SELECT player_position, SUM(PO) AS total_putouts
+FROM position_grouping
+GROUP BY player_position		
+						  
