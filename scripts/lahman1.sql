@@ -24,13 +24,12 @@ SELECT DISTINCT namefirst ||' '|| namelast AS fullname, SUM(salary) AS total_sal
 FROM salaries
 INNER JOIN people
 USING(playerid)
-INNER JOIN collegeplaying 
-USING(playerid)
-INNER JOIN schools
-USING(schoolid)
-WHERE schoolname ILIKE '%vanderbilt%'
+WHERE playerid IN
+				(SELECT playerid
+				FROM collegeplaying
+				WHERE schoolid = 'vandy')
 GROUP BY fullname
-ORDER BY total_salary DESC;
+ORDER BY total_salary DESC
 --david price
 
 --4. Using the fielding table, group players into three groups based on their position: label players with position OF as "Outfield", those with position "SS", "1B", "2B", and "3B" as "Infield", and those with position "P" or "C" as "Battery". Determine the number of putouts made by each of these three groups in 2016.
@@ -47,24 +46,24 @@ FROM position_grouping
 GROUP BY player_position;		
 						  
 --5. Find the average number of strikeouts per game by decade since 1920. Round the numbers you report to 2 decimal places. Do the same for home runs per game. Do you see any trends?
+SELECT 
+  SUM(total_so/total_games) AS so_per_game,
+  SUM(total_hr/total_games) AS hr_per_game, 
+  decade
+FROM (
+		  SELECT 
+			DISTINCT yearid, 
+			MAX(g) AS max_games, 
+			MAX(g) * COUNT(DISTINCT teamid)/2 AS total_games, 
+			COUNT(DISTINCT teamid) AS num_of_teams, 
+			SUM(so) AS total_so, 
+			CONCAT(FLOOR(yearID/10)*10,'s') AS decade, 
+			SUM(hr) AS total_hr
+		  	FROM batting
+			WHERE yearid >= 1920
+			GROUP BY yearid) AS baseball_games
+GROUP BY decade;
 
-SELECT G AS Game, ROUND(AVG(SO),2) AS avg_strikeouts,
-		ROUND(AVG(hr),2) AS avg_homeruns,
-		CASE WHEN yearid BETWEEN 1920 AND 1929 THEN '1920s'
-			WHEN yearid BETWEEN 1930 AND 1939 THEN '1930s'
-			WHEN yearid BETWEEN 1940 AND 1949 THEN '1940s'
-			WHEN yearid BETWEEN 1950 AND 1959 THEN '1950s'
-			WHEN yearid BETWEEN 1960 AND 1969 THEN '1920s'
-			WHEN yearid BETWEEN 1970 AND 1979 THEN '1970s'
-			WHEN yearid BETWEEN 1980 AND 1989 THEN '1980s'
-			WHEN yearid BETWEEN 1990 AND 1999 THEN '1990s'
-			WHEN yearid BETWEEN 2000 AND 2009 THEN '2000s'
-			WHEN yearid BETWEEN 2010 AND 2019 THEN '2010s'
-			ELSE 'Not between Years' END AS decades
-FROM batting
-WHERE yearid BETWEEN 1920 AND 2016
-GROUP BY Game, yearid
-ORDER BY avg_strikeouts DESC;
 
 --6. Find the player who had the most success stealing bases in 2016, where __success__ is measured as the percentage of stolen base attempts which are successful. (A stolen base attempt results either in a stolen base or being caught stealing.) Consider only players who attempted _at least_ 20 stolen bases.
 SELECT MAX(sb) AS stolen_bases, playerid
@@ -127,5 +126,21 @@ FROM
 		GROUP BY team_name, park_name, hg.games
 		HAVING games >= 10
 		ORDER BY avg_attendance ASC
-		LIMIT 5) AS top_five_lowest
+		LIMIT 5) AS top_five_lowest;
 --lowest attendance is not correct, still working
+
+
+
+SELECT LEFT(CAST(yearid AS varchar), 3) AS decade,
+ROUND(AVG(so/g)*10,2) AS so_per_game
+FROM pitching AS p
+WHERE CAST(LEFT(CAST(yearid AS varchar), 3) AS int) >= 192
+GROUP BY decade
+ORDER BY decade
+
+SELECT LEFT(CAST(yearid AS varchar), 3) AS decade,
+ROUND(AVG(hr/g)*10,2) AS hr_per_game
+FROM batting AS b
+WHERE CAST(LEFT(CAST(yearid AS varchar), 3) AS int) >= 192
+GROUP BY decade
+ORDER BY decade
