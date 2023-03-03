@@ -35,13 +35,13 @@ ORDER BY total_salary DESC;
 
 --4. Using the fielding table, group players into three groups based on their position: label players with position OF as "Outfield", those with position "SS", "1B", "2B", and "3B" as "Infield", and those with position "P" or "C" as "Battery". Determine the number of putouts made by each of these three groups in 2016.
 
-		WITH position_grouping AS	
+WITH position_grouping AS	
 				(SELECT yearid, PO,
 					CASE WHEN pos = 'OF' THEN 'Outfield'
 						WHEN pos = 'P' OR pos = 'C' THEN 'Battery'
 						ELSE 'Infield' END AS player_position
-			FROM fielding
-			WHERE yearid = '2016') 
+					FROM fielding
+					WHERE yearid = '2016') 
 SELECT player_position, SUM(PO) AS total_putouts
 FROM position_grouping
 GROUP BY player_position;		
@@ -96,6 +96,36 @@ FROM
 		AND wswin = 'Y'
 		AND yearid <> '1981'
 		ORDER BY number_of_wins ASC
-		LIMIT 1) AS least_wins_with_ws
+		LIMIT 1) AS least_wins_with_ws;
 
 --8. Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.
+SELECT avg_attendance, team_name, park_name, attendance 
+FROM
+		(SELECT (SUM(hg.attendance)/hg.games) AS avg_attendance, t.name AS team_name, p.park_name AS park_name, 'highest_attendance' AS attendance
+		FROM homegames AS hg
+		LEFT JOIN parks AS p
+		ON p.park = hg.park
+		INNER JOIN teams AS t
+		ON hg.team = t.teamid
+		WHERE hg.year = 2016
+		GROUP BY team_name, park_name, hg.games
+		HAVING games >= 10
+		ORDER BY avg_attendance DESC
+		LIMIT 5) AS top_five_highest
+
+UNION ALL
+
+SELECT avg_attendance, team_name, park_name, attendance
+FROM
+		(SELECT (SUM(hg.attendance)/hg.games) AS avg_attendance, t.name AS team_name, p.park_name AS park_name, 'lowest_attendance' AS attendance
+		FROM homegames AS hg
+		LEFT JOIN parks AS p
+		ON p.park = hg.park
+		LEFT JOIN teams AS t
+		ON hg.team = t.teamid
+		WHERE hg.year = 2016
+		GROUP BY team_name, park_name, hg.games
+		HAVING games >= 10
+		ORDER BY avg_attendance ASC
+		LIMIT 5) AS top_five_lowest
+--lowest attendance is not correct, still working
