@@ -73,6 +73,7 @@ GROUP BY namefirst, namelast, playerid
 ORDER BY sb_success_rate DESC
 LIMIT 1;
 
+
 --7.  From 1970 – 2016, what is the largest number of wins for a team that did not win the world series? What is the smallest number of wins for a team that did win the world series? Doing this will probably result in an unusually small number of wins for a world series champion – determine why this is the case. Then redo your query, excluding the problem year. 
 
 --How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
@@ -98,6 +99,12 @@ FROM
 		AND yearid <> '1981'
 		ORDER BY number_of_wins ASC
 		LIMIT 1) AS least_wins_with_ws;
+		
+	SELECT name AS team, w AS number_of_wins, wswin, yearid
+		FROM teams
+		WHERE yearid BETWEEN '1970' AND '2016'
+		AND yearid <> '1981'
+		ORDER BY number_of_wins DESC;
 
 --8. Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.
 SELECT avg_attendance, team_name, park_name, attendance 
@@ -169,7 +176,7 @@ WHERE p.playerid IN
 --10. Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016
 
 WITH career_length AS (
-  SELECT playerid, namefirst, namelast, hr, yearid, DATE_PART('year', finalgame::date) - DATE_PART('year', debut::date) + 1 AS years_played
+ SELECT playerid, namefirst, namelast, hr, yearid, DATE_PART('year', finalgame::date) - DATE_PART('year', debut::date) + 1 AS years_played
   FROM people AS p
   INNER JOIN batting AS b
 	USING(playerid)
@@ -182,3 +189,12 @@ AND yearid = 2016
 GROUP BY playerid, namefirst, namelast
 ORDER BY max_hr DESC
 LIMIT 1;
+
+--11. Is there any correlation between number of wins and team salary? Use data from 2000 and later to answer this question. As you do this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year basis.
+SELECT t.*,
+rank() OVER(PARTITION BY s.teamid ORDER BY SUM(salary)DESC) AS salary_rank
+FROM teams AS t
+LEFT JOIN salaries AS s
+USING(teamid)
+WHERE t.yearid >= 2000
+GROUP BY t.yearid
