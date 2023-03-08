@@ -76,8 +76,6 @@ LIMIT 1;
 
 --7.  From 1970 – 2016, what is the largest number of wins for a team that did not win the world series? What is the smallest number of wins for a team that did win the world series? Doing this will probably result in an unusually small number of wins for a world series champion – determine why this is the case. Then redo your query, excluding the problem year. 
 
---How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
-
 SELECT number_of_wins, team, WS_Result
 FROM
 		(SELECT name AS team, w AS number_of_wins, 'Did Not Win World Series' AS WS_Result
@@ -100,43 +98,135 @@ FROM
 		ORDER BY number_of_wins ASC
 		LIMIT 1) AS least_wins_with_ws;
 		
-	SELECT name AS team, w AS number_of_wins, wswin, yearid
-		FROM teams
-		WHERE yearid BETWEEN '1970' AND '2016'
-		AND yearid <> '1981'
-		ORDER BY number_of_wins DESC;
+	
+		
+--How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
+
+----------------Patricks Code
+	WITH strike AS
+(SELECT *
+FROM teams
+WHERE yearid >= 1970 
+EXCEPT
+SELECT *
+FROM teams
+WHERE yearid = 1981) 
+,
+ws_pct AS
+(SELECT 
+CAST(COUNT(DISTINCT yearid) as numeric) as year_count
+FROM strike)
+
+SELECT
+	name,
+	yearid
+-- 	COUNT(yearid),
+-- 	ROUND(CAST(COUNT(yearid) as numeric)/(SELECT year_count FROM ws_pct), 2) as pct
+FROM 
+	(SELECT 
+		name,
+		w as wins,
+		MAX(w) OVER (PARTITION BY yearid) as max_wins,
+		yearid,
+		wswin
+	FROM strike) AS maxes
+WHERE max_wins = wins AND wswin = 'Y'	
+		
+-------Nicks Code	
+		select
+ sum(did_ws_winner_win_most_games) as number_of_times_winningest_team_won_ws,
+ round((sum(did_ws_winner_win_most_games)::numeric / count(*)::numeric) * 100, 2) as winningest_team_win_ws_percentage
+from (
+ select
+  teams_with_most_wins_per_year.yearid,
+  teams_with_most_wins_per_year.teamid as team_with_most_wins,
+  team_that_won_ws.teamid as team_that_won_ws,
+  case
+   when teams_with_most_wins_per_year.teamid = team_that_won_ws.teamid then 1 else 0
+  end as did_ws_winner_win_most_games
+ from (
+  select
+   distinct on (yearid)
+   teamid,
+   yearid,
+   w
+  from teams
+  where yearid between 1970 and 2016
+  and yearid <> 1981
+  order by yearid, w desc
+ ) as teams_with_most_wins_per_year
+ inner join (
+  select
+   teamid,
+   yearid,
+   wswin
+  from teams
+  where yearid between 1970 and 2016
+  and wswin = 'Y'
+ ) as team_that_won_ws
+ on teams_with_most_wins_per_year.yearid = team_that_won_ws.yearid
+) as v_winning_teams;
+		
+		
 
 --8. Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.
-SELECT avg_attendance, team_name, park_name, attendance 
+SELECT avg_attendance, team_name, park_name, attendance
 FROM
-		(SELECT (SUM(hg.attendance)/COUNT(hg.games)) AS avg_attendance, t.name AS team_name, p.park_name AS park_name, 'highest_attendance' AS attendance
-		FROM homegames AS hg
-		FULL JOIN parks AS p
-		ON p.park = hg.park
-		FULL JOIN teams AS t
-		ON hg.team = t.teamid
-		WHERE hg.year = 2016
-		GROUP BY team_name, park_name, hg.games
-		HAVING COUNT(games) >= 10
-		ORDER BY avg_attendance DESC
-		LIMIT 5) AS top_five_highest
+	(SELECT (hg.attendance)/hg.games AS avg_attendance, t.name AS team_name, p.park_name AS park_name, 'highest_attendance' AS attendance
+	FROM homegames AS hg
+	INNER JOIN parks AS p
+	ON p.park = hg.park
+	INNER JOIN teams AS t
+	ON hg.team = t.teamid
+	WHERE hg.year = 2016
+	GROUP BY t.name, p.park_name, hg.games, hg.attendance
+	HAVING COUNT(hg.games) >= 10
+	ORDER BY avg_attendance DESC
+	LIMIT 5) AS top_five_highest
 
-UNION ALL
+UNION
 
 SELECT avg_attendance, team_name, park_name, attendance
 FROM
-		(SELECT (SUM(hg.attendance)/COUNT(hg.games)) AS avg_attendance, t.name AS team_name, p.park_name AS park_name, 'lowest_attendance' AS attendance
-		FROM homegames AS hg
-		FULL JOIN parks AS p
-		ON p.park = hg.park
-		FULL JOIN teams AS t
-		ON hg.team = t.teamid
-		WHERE hg.year = 2016
-		GROUP BY team_name, park_name, hg.games
-		HAVING COUNT(games) >= 10
-		ORDER BY avg_attendance ASC
-		LIMIT 5) AS top_five_lowest;
+	(SELECT hg.attendance/hg.games AS avg_attendance, t.name AS team_name, p.park_name AS park_name, 'lowest_attendance' AS attendance
+	FROM homegames AS hg
+	INNER JOIN parks AS p
+	ON p.park = hg.park
+	INNER JOIN teams AS t
+	ON hg.team = t.teamid
+	WHERE hg.year = 2016
+	GROUP BY t.name, p.park_name, hg.games, hg.attendance
+	HAVING COUNT(hg.games) >= 10
+	ORDER BY avg_attendance ASC
+	LIMIT 5) AS top_five_lowest
+	ORDER BY attendance
 --lowest attendance is not correct, still working
+
+
+-----------------jordan code
+(SELECT teams.park, name, homegames.attendance/homegames.games as avg_attd, 'high' as class
+FROM homegames
+JOIN teams
+ON homegames.team = teams.teamid AND homegames.year = teams.yearid
+WHERE year = '2016' AND games >= 10
+ORDER BY avg_attd DESC 
+LIMIT 5)
+
+UNION
+
+(SELECT teams.park, name, homegames.attendance/homegames.games as avg_attd, 'low' as class
+FROM homegames
+JOIN teams
+ON homegames.team = teams.teamid AND homegames.year = teams.yearid
+WHERE year = '2016' AND games >= 10
+ORDER BY avg_attd  
+LIMIT 5) -- Bottom 5
+ORDER BY class
+
+
+
+
+
 
 --9. Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
 
@@ -171,8 +261,28 @@ WHERE p.playerid IN
 	  AND awardid = 'TSN Manager of the Year'
 	 ORDER BY yearid
 	);
-
-	
+---------------------- jordan code below
+	WITH cte as(
+			SELECT sub.name as name, year, team_name, league
+		FROM (SELECT playerid, yearid as year, CONCAT(p.namefirst, ' ', p.namelast) as name, awardid, COUNT(playerid) OVER (PARTITION BY playerid) as tsn_count
+				FROM awardsmanagers as a
+				LEFT JOIN people as p
+				USING (playerid)
+			  	WHERE awardid LIKE 'TSN%') as sub
+		LEFT JOIN (SELECT playerid, t.teamid, m.yearid, t.name as team_name, m.lgid as league
+				 	FROM managers as m
+				  	INNER JOIN teams as t
+				  	ON m.teamid = t.teamid AND m.yearid = t.yearid
+				  	GROUP BY playerid, m.yearid, t.teamid, t.name, m.lgid) as tsub
+			ON sub.playerid = tsub.playerid AND sub.year = tsub.yearid
+		WHERE tsn_count > 1) 
+		
+SELECT name, year, team_name, league
+FROM CTE					
+WHERE (SELECT COUNT(distinct league)
+		FROM cte as sub
+		WHERE cte.name = sub.name) > 1
+ORDER BY name, year -- this one works
 --10. Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016
 
 WITH career_length AS (
@@ -186,15 +296,83 @@ SELECT namefirst, namelast, MAX(hr) AS max_hr
 FROM career_length
 WHERE years_played >= 10
 AND yearid = 2016
-GROUP BY playerid, namefirst, namelast
-ORDER BY max_hr DESC
-LIMIT 1;
+GROUP BY playerid, namefirst, namelast, career_length.hr
+HAVING MAX(hr) = hr
+ORDER BY max_hr DESC;
+
+
+
+--------------------- jordan code below 
+WITH cte as (SELECT playerid, yearid, hrs
+			FROM (SELECT playerid, yearid, SUM(hr) as hrs
+						FROM batting
+						GROUP BY playerid, yearid) as sub
+			WHERE hrs in (SELECT MAX(hrs) OVER (PARTITION BY playerid)
+								FROM (SELECT playerid, yearid, 
+									  SUM(hr) as hrs
+										FROM batting as bb
+										GROUP BY playerid, yearid) as bsub
+								WHERE bsub.playerid = sub.playerid ) 
+				AND hrs >= 1
+				AND playerid IN (SELECT playerid
+									FROM batting
+									GROUP BY playerid
+									HAVING COUNT( DISTINCT yearid) >= 10))
+			
+SELECT CONCAT(p.namefirst, ' ', p.namelast), hrs
+FROM cte
+INNER JOIN people as p
+USING (playerid)
+WHERE yearid = '2016'
+ORDER BY hrs DESC
+
+
 
 --11. Is there any correlation between number of wins and team salary? Use data from 2000 and later to answer this question. As you do this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year basis.
-SELECT t.*,
-rank() OVER(PARTITION BY s.teamid ORDER BY SUM(salary)DESC) AS salary_rank
-FROM teams AS t
-LEFT JOIN salaries AS s
-USING(teamid)
-WHERE t.yearid >= 2000
-GROUP BY t.yearid
+SELECT 
+	t.name AS mlb_teams,
+  s.yearid,
+  t.w AS wins, 
+  SUM(s.salary) AS total_salary 
+FROM 
+  salaries AS s 
+  JOIN teams AS t 
+    ON s.teamid = t.teamid AND s.yearid = t.yearid 
+WHERE 
+  s.yearid >= 2000 
+GROUP BY 
+  s.yearid,
+  wins,
+  mlb_teams
+ORDER BY 
+  s.yearid DESC, 
+  wins DESC
+--12. In this question, you will explore the connection between number of wins and attendance.
+--<ol type="a">
+--      <li>Does there appear to be any correlation between attendance at home games and number of wins? </li>
+--      <li>Do teams that win the world series see a boost in attendance the following year? What about teams that made the playoffs? Making the playoffs means either being a division winner or a wild card winner.</li>
+--    </ol>
+
+SELECT 
+  t1.name AS mlb_teams, 
+  t1.yearid, 
+  t1.attendance,
+  t2.attendance AS attendance_next_year,
+  t3.attendance AS attendance_previous_year,
+  t2.attendance - t1.attendance AS attendance_difference_next_year,
+  t1.attendance - t3.attendance AS attendance_difference_previous_year,
+  t1.w AS wins
+FROM 
+  teams t1
+  JOIN teams t2 
+    ON t1.teamid = t2.teamid AND t1.yearid = t2.yearid - 1
+  JOIN teams t3
+    ON t1.teamid = t3.teamid AND t1.yearid = t3.yearid + 1
+WHERE 
+  t1.yearid >= 2000 
+  AND t1.wswin = 'Y'
+ORDER BY 
+  t1.yearid DESC, 
+  t1.teamid ASC
+
+--13. It is thought that since left-handed pitchers are more rare, causing batters to face them less often, that they are more effective. Investigate this claim and present evidence to either support or dispute this claim. First, determine just how rare left-handed pitchers are compared with right-handed pitchers. Are left-handed pitchers more likely to win the Cy Young Award? Are they more likely to make it into the hall of fame?
