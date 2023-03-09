@@ -329,6 +329,29 @@ ORDER BY hrs DESC
 
 
 --11. Is there any correlation between number of wins and team salary? Use data from 2000 and later to answer this question. As you do this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year basis.
+-- jordan code below
+WITH ranks as (
+				SELECT s.yearid, s.teamid, total_sal,
+			ROUND(((total_sal-AVG(total_sal) OVER (Partition by s.yearid)::numeric)/AVG(total_sal) OVER (Partition by s.yearid))::numeric,2) as salary_pct_diff,
+			t.w as wins, 
+			RANK() OVER (PARTITION BY s.yearid order by total_sal DESC ) as sal_rank, 
+			RANK() OVER (PARTITION BY t.yearid ORDER BY t.w DESC) as win_rank
+		FROM (SELECT s.yearid, s.teamid, SUM(s.salary) as total_sal
+						FROM salaries as s
+						GROUP BY s.teamid,s.yearid) as s
+		LEFT JOIN teams as t
+			ON t.teamid=s.teamid AND s.yearid=t.yearid
+		ORDER BY yearid DESC, win_rank
+										)
+										
+SELECT ROUND(CORR(salary_pct_diff, wins)::numeric,2) as correlation
+FROM ranks
+WHERE ranks.yearid >= '2000'
+
+
+
+---my code below
+
 SELECT 
 	t.name AS mlb_teams,
   s.yearid,
@@ -352,7 +375,7 @@ ORDER BY
 --      <li>Does there appear to be any correlation between attendance at home games and number of wins? </li>
 --      <li>Do teams that win the world series see a boost in attendance the following year? What about teams that made the playoffs? Making the playoffs means either being a division winner or a wild card winner.</li>
 --    </ol>
-
+----my code below
 SELECT 
   t1.name AS mlb_teams, 
   t1.yearid, 
@@ -375,4 +398,95 @@ ORDER BY
   t1.yearid DESC, 
   t1.teamid ASC
 
+----jordan code below
+SELECT CORR(w, change_attn)
+FROM (SELECT yearid, teamid, w, attendance, (100*attendance - Lag(attendance) OVER (PARTITION BY teamid ORDER BY yearid))::float/Lag(attendance) OVER (PARTITION BY teamid ORDER BY 		yearid)::float as change_attn
+		FROM teams
+	  WHERE attendance IS NOT NULL) as sub
+
+-----jordan code below
+With attd as (
+			SELECT yearid, 
+			teamid,
+			wswin='Y' as ws_win,
+			divwin='Y' OR wcwin = 'Y' as playoffs,
+			LAG(w) OVER (Partition by teamid ORDER BY yearid) as last_year_w, attendance, 
+			(attendance - Lag(attendance) OVER (PARTITION BY teamid ORDER BY yearid))::float/
+						   Lag(attendance) OVER (PARTITION BY teamid ORDER BY yearid)::float as change_attn
+		FROM teams
+		WHERE attendance IS NOT NULL
+		Order by teamid, yearid
+								)
+SELECT ws_win, ROUND(100*AVG(change_attn::numeric),1)
+FROM attd
+WHERE ws_win IS NOT NULL
+GROUP BY ws_win
+
+
 --13. It is thought that since left-handed pitchers are more rare, causing batters to face them less often, that they are more effective. Investigate this claim and present evidence to either support or dispute this claim. First, determine just how rare left-handed pitchers are compared with right-handed pitchers. Are left-handed pitchers more likely to win the Cy Young Award? Are they more likely to make it into the hall of fame?
+
+---my code below
+WITH lefties AS (
+  SELECT COUNT(DISTINCT playerid) AS num_of_lefty_pitchers
+  FROM pitching AS pi
+  JOIN people AS p USING(playerid)
+  JOIN awardsplayers AS a USING(playerid)	
+  WHERE throws = 'L' AND throws IS NOT NULL
+  AND awardid ILIKE '%Cy Young%'
+),
+
+righties AS (
+  SELECT COUNT(DISTINCT playerid) AS num_of_righty_pitchers
+  FROM pitching AS pi
+  JOIN people AS p USING(playerid)
+  JOIN awardsplayers AS a USING(playerid)	
+  WHERE throws = 'R' AND throws IS NOT NULL
+  AND awardid ILIKE '%Cy Young%'
+),
+
+winners AS (
+  SELECT COUNT(*) AS total_winners
+  FROM awardsplayers
+  WHERE awardid ILIKE '%Cy Young%')
+
+SELECT 
+  num_of_lefty_pitchers, 
+  num_of_righty_pitchers, 
+  total_winners, 
+  CONCAT(CAST(ROUND(num_of_lefty_pitchers::numeric / total_winners * 100, 2) AS VARCHAR), '%') AS lefty_pct,
+  CONCAT(CAST(ROUND(num_of_righty_pitchers::numeric / total_winners * 100, 2) AS VARCHAR), '%') AS righty_pct
+FROM 
+  lefties, 
+  righties, 
+  winners;
+
+-- my code/ hall of fame below
+SELECT
+  COUNT(DISTINCT CASE WHEN throws = 'L' THEN p.playerid END) AS num_of_lefty_pitchers,
+  COUNT(DISTINCT CASE WHEN throws = 'R' THEN p.playerid END) AS num_of_righty_pitchers,
+  COUNT(DISTINCT CASE WHEN throws IS NOT NULL THEN p.playerid END) AS total_pitchers,
+ CONCAT(ROUND(COUNT(DISTINCT CASE WHEN throws = 'L' THEN p.playerid END) * 100.0 / COUNT(DISTINCT CASE WHEN throws IS NOT NULL THEN p.playerid END), 2), '%') AS lefty_proportion,
+  CONCAT(ROUND(COUNT(DISTINCT CASE WHEN throws = 'R' THEN p.playerid END) * 100.0 / COUNT(DISTINCT CASE WHEN throws IS NOT NULL THEN p.playerid END), 2), '%') AS righty_proportion
+FROM
+  pitching AS p
+  JOIN people AS pe ON p.playerid = pe.playerid
+  JOIN halloffame AS h ON p.playerid = h.playerid
+WHERE
+  h.inducted = 'Y'
+  AND h.category = 'Player';
+
+
+----jordan code below
+With pitchers as (
+	SELECT distinct pi.playerid, throws
+	FROM pitching as pi
+	INNER JOIN people as po
+	USING (playerid)
+	WHERE throws IS NOT NULL)
+
+SELECT throws, COUNT(*)::float/(SELECT COUNT(*)
+				FROM pitchers)::float as throw_pct, COUNT(*)
+FROM pitchers
+WHERE throws <> 'S'
+GROUP BY throws
+
